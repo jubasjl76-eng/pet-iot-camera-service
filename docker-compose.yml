@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  camera:
+    build: .
+    container_name: pet-camera-service
+    restart: unless-stopped
+    ports:
+      - "3006:3006"
+    environment:
+      - PORT=3006
+      - MQTT_HOST=mosquitto
+      - MQTT_PORT=1883
+      - LOCAL_BACKEND_URL=http://local-backend:3000
+      - CLOUD_BACKEND_URL=${CLOUD_BACKEND_URL:-https://api.petsmart.example.com}
+      - API_KEY=${API_KEY:-smart-pet-api-key-2026}
+      - HLS_OUTPUT=/app/streams
+    volumes:
+      - ./streams:/app/streams
+    networks:
+      - iot-network
+
+networks:
+  iot-network:
+    driver: bridge
