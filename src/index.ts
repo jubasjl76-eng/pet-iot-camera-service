@@ -10,6 +10,7 @@ import { backendClient } from './services/backendClient.js';
 import { cameraManager } from './cameras/index.js';
 import { streamManager } from './streams/index.js';
 import { healthMonitor } from './health/index.js';
+import { mqttCameraClient } from './mqtt/index.js';
 import cameraRoutes from './api/index.js';
 
 async function main() {
@@ -41,6 +42,14 @@ async function main() {
     console.log('[Service] =========================================');
   });
 
+  // Connect to MQTT
+  try {
+    await mqttCameraClient.connect();
+    console.log('[Service] MQTT connected');
+  } catch (error) {
+    console.log('[Service] MQTT connection failed, running without MQTT');
+  }
+
   // Start health monitoring
   healthMonitor.start();
 
@@ -53,6 +62,7 @@ function shutdown() {
   console.log('\n[Service] Shutting down...');
   streamManager.stopAll();
   healthMonitor.stop();
+  mqttCameraClient.disconnect();
   backendClient.stop();
   process.exit(0);
 }
