@@ -8,6 +8,7 @@ import { EventEmitter } from 'events';
 import { config } from '../config/index.js';
 import { cameraManager } from '../cameras/index.js';
 import { motionDetection } from '../motion/index.js';
+import { audioRelay, type AudioSignal } from '../audio/index.js';
 
 export class MQTTCameraClient extends EventEmitter {
   private client: MqttClient | null = null;
@@ -65,6 +66,7 @@ export class MQTTCameraClient extends EventEmitter {
       'kennel/+/camera/+/status',
       'kennel/+/camera/+/motion',
       'kennel/+/camera/+/command',
+      'kennel/+/camera/+/audio',
     ];
 
     topics.forEach(topic => {
@@ -90,13 +92,21 @@ export class MQTTCameraClient extends EventEmitter {
 
       if (type === 'status') {
         // Update camera status
-        cameraManager.updateStatus(cameraId, payload.online ?? true);
+        cameraManager.updateStatus(cameraId, payload.online ?? (payload.status ?? 'online') !== 'offline');
       } else if (type === 'motion') {
         // Process motion event
         motionDetection.processMotion(cameraId, payload.intensity || 50);
       } else if (type === 'command') {
         // Handle command
         this.emit('command', { cameraId, kennelId, command: payload });
+      } else if (type === 'audio') {
+        // Signalling from the camera device → relay to the waiting app.
+        const sessionId: string | undefined = payload.session || payload.sessionId;
+        const signal: AudioSignal | undefined = payload.signal;
+        if (sessionId && signal) {
+          audioRelay.relay(sessionId, 'camera', signal);
+          this.emit('audioSignal', { cameraId, kennelId, sessionId, signal });
+        }
       }
       
     } catch (error) {
@@ -116,6 +126,21 @@ export class MQTTCameraClient extends EventEmitter {
     const topic = `kennel/${kennelId}/camera/${cameraId}/${eventType}`;
     this.client.publish(topic, JSON.stringify(data), { qos: 1 });
     console.log(`[MQTT] Published to ${topic}`);
+  }
+
+  /**
+   * Send a two-way-audio signal to a camera device
+   * (kennel/{kennelId}/camera/{cameraId}/audio).
+   */
+  publishAudio(kennelId: string, cameraId: string, session: string, signal: AudioSignal): void {
+    if (!this.client || !this.client.connected) {
+      console.log('[MQTT] Client not connected — audio signal dropped');
+      return;
+    }
+    const topic = `kennel/${kennelId}/camera/${cameraId}/audio`;
+    this.client.publish(topic, JSON.stringify({
+      deviceId: cameraId, kennelId, timestamp: Date.now(), session, signal,
+    }), { qos: 1 });
   }
 
   isConnected(): boolean {
