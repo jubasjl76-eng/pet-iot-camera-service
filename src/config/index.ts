@@ -26,6 +26,9 @@ export interface Config {
   
   // Health check
   healthCheckInterval: number;
+
+  // Two-way audio: signalling session idle TTL (ms)
+  audioSessionTtl: number;
 }
 
 export const config: Config = {
@@ -48,4 +51,6 @@ export const config: Config = {
   motionCooldown: parseInt(process.env.MOTION_COOLDOWN || '60'),
   
   healthCheckInterval: parseInt(process.env.HEALTH_CHECK_INTERVAL || '60000'),
+
+  audioSessionTtl: parseInt(process.env.AUDIO_SESSION_TTL || '120000'),
 };

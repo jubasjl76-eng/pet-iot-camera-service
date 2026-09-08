@@ -11,6 +11,7 @@ import { cameraManager } from './cameras/index.js';
 import { streamManager } from './streams/index.js';
 import { healthMonitor } from './health/index.js';
 import { mqttCameraClient } from './mqtt/index.js';
+import { audioRelay } from './audio/index.js';
 import cameraRoutes from './api/index.js';
 
 async function main() {
@@ -42,6 +43,11 @@ async function main() {
     console.log('[Service] =========================================');
   });
 
+  // Two-way audio: relay app→camera signals over MQTT
+  audioRelay.setPublisher((kennelId, cameraId, sessionId, signal) => {
+    mqttCameraClient.publishAudio(kennelId, cameraId, sessionId, signal);
+  });
+
   // Connect to MQTT
   try {
     await mqttCameraClient.connect();
@@ -62,6 +68,7 @@ function shutdown() {
   console.log('\n[Service] Shutting down...');
   streamManager.stopAll();
   healthMonitor.stop();
+  audioRelay.stop();
   mqttCameraClient.disconnect();
   backendClient.stop();
   process.exit(0);

@@ -17,6 +17,8 @@ This service manages cameras and forwards events to the backend API. It does NOT
 - ❤️ Camera health monitoring
 - 📸 Snapshot API
 - 🔄 MQTT integration
+- 🗣️ **Two-way audio** — "talk to your dog": WebRTC signalling relay between the
+  pet-owner app and the camera, plus push-to-talk and canned-clip playback
 - ☁️ Sends data to backend API (not direct database)
 
 ## Technology Stack
@@ -32,13 +34,35 @@ This service manages cameras and forwards events to the backend API. It does NOT
 kennel/{kennelId}/camera/{deviceId}/status
 kennel/{kennelId}/camera/{deviceId}/motion
 kennel/{kennelId}/camera/{deviceId}/command
+kennel/{kennelId}/camera/{deviceId}/audio      ← two-way audio signalling (from device)
 ```
 
 ### Publish
 ```
 kennel/{kennelId}/camera/{deviceId}/status
 kennel/{kennelId}/camera/{deviceId}/event
+kennel/{kennelId}/camera/{deviceId}/audio      ← two-way audio signalling (to device)
 ```
+
+## Two-way audio API
+
+Media is peer-to-peer WebRTC; the service only shuttles the small control
+messages (`offer` / `answer` / `ice` / `talk` / `play` / `stop`). The app opens a
+session, POSTs its signals, and polls for the camera's replies. The camera side
+receives signals over MQTT `…/audio` (or `GET …/poll-camera` if it can't do MQTT).
+
+| Method | Endpoint | Body |
+|--------|----------|------|
+| POST | `/api/cameras/:id/audio/session` | → `{ sessionId }` |
+| GET | `/api/cameras/:id/audio/sessions` | list active |
+| POST | `/api/cameras/:id/audio/signal` | `{ sessionId, signal:{kind:"offer"\|"answer"\|"ice", …} }` |
+| GET | `/api/cameras/:id/audio/session/:sid/poll` | → `{ signals: [...] }` queued for the app |
+| GET | `/api/cameras/:id/audio/session/:sid/poll-camera` | → queued for the camera |
+| POST | `/api/cameras/:id/audio/talk` | `{ sessionId, state:"start"\|"end" }` |
+| POST | `/api/cameras/:id/audio/play` | `{ sessionId, url, loop? }` |
+| DELETE | `/api/cameras/:id/audio/session/:sid` | end |
+
+Sessions are in-memory and expire after `AUDIO_SESSION_TTL` ms of inactivity.
 
 ## Configuration
 
@@ -52,6 +76,7 @@ kennel/{kennelId}/camera/{deviceId}/event
 | HLS_OUTPUT | HLS output path | ./streams |
 | MOTION_THRESHOLD | Motion detection threshold | 30 |
 | MOTION_COOLDOWN | Motion cooldown (seconds) | 60 |
+| AUDIO_SESSION_TTL | Two-way-audio session idle TTL (ms) | 120000 |
 
 ## Quick Start
 
