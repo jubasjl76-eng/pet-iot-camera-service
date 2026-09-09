@@ -14,6 +14,7 @@ import { mqttCameraClient } from './mqtt/index.js';
 import { audioRelay } from './audio/index.js';
 import { motionAnalyzer } from './motion/analyzer.js';
 import cameraRoutes, { markShuttingDown } from './api/index.js';
+import { buildOpenApiDoc, docsHtml } from './openapi.js';
 import type { Server } from 'http';
 
 async function main() {
@@ -34,6 +35,8 @@ async function main() {
   app.use(express.json());
 
   // Routes
+  app.get('/openapi.json', (_req, res) => res.json(buildOpenApiDoc()));
+  app.get('/docs', (_req, res) => res.type('html').send(docsHtml));
   app.use('/api', cameraRoutes);
 
   // Static files for HLS streams

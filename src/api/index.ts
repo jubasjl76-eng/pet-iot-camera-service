@@ -3,6 +3,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { z } from '@jubasjl76-eng/shared';
 import { config } from '../config/index.js';
 import { cameraManager, CameraConfig } from '../cameras/index.js';
 import { streamManager } from '../streams/index.js';
@@ -10,64 +11,125 @@ import { motionDetection } from '../motion/index.js';
 import { healthMonitor } from '../health/index.js';
 import { audioRelay } from '../audio/index.js';
 import { mqttCameraClient } from '../mqtt/index.js';
+import { apiRoute } from '../openapi.js';
 
 const router = Router();
+const T = ['cameras'];
+const idParam = z.object({ id: z.string() });
 
 // ICE servers (STUN + optional TURN) for the app's RTCPeerConnection.
-router.get('/ice-servers', (_req: Request, res: Response) => {
-  res.json({ iceServers: config.iceServers });
-});
+router.get(
+  '/ice-servers',
+  apiRoute({
+    method: 'get',
+    path: '/api/ice-servers',
+    tags: ['audio'],
+    summary: 'STUN/TURN config for the app RTCPeerConnection.',
+    responses: { 200: { description: 'ok', schema: z.object({ iceServers: z.array(z.object({ urls: z.string(), username: z.string().optional(), credential: z.string().optional() })) }) } },
+  }),
+  (_req: Request, res: Response) => {
+    res.json({ iceServers: config.iceServers });
+  },
+);
 
 // ============== CAMERAS ==============
 
-// GET /api/cameras - List all cameras
-router.get('/cameras', (_req: Request, res: Response) => {
-  const cameras = cameraManager.getAllCameras();
-  res.json({ cameras });
+const cameraShape = z.object({
+  id: z.string(),
+  cameraId: z.string().optional(),
+  name: z.string(),
+  location: z.string().optional(),
+  kennelId: z.string().optional(),
+  rtspUrl: z.string(),
+  isOnline: z.boolean().optional(),
 });
+
+// GET /api/cameras - List all cameras
+router.get(
+  '/cameras',
+  apiRoute({
+    method: 'get',
+    path: '/api/cameras',
+    tags: T,
+    summary: 'List registered cameras.',
+    responses: { 200: { description: 'ok', schema: z.object({ cameras: z.array(cameraShape) }) } },
+  }),
+  (_req: Request, res: Response) => {
+    const cameras = cameraManager.getAllCameras();
+    res.json({ cameras });
+  },
+);
 
 // POST /api/cameras - Register new camera
-router.post('/cameras', (req: Request, res: Response) => {
-  const { name, location, kennelId, rtspUrl, resolution, fps } = req.body;
-
-  if (!name || !rtspUrl) {
-    res.status(400).json({ error: 'name and rtspUrl are required' });
-    return;
-  }
-
-  const config: CameraConfig = {
-    name,
-    location,
-    kennelId,
-    rtspUrl,
-    resolution,
-    fps,
-  };
-
-  const camera = cameraManager.registerCamera(config);
-  res.status(201).json({ camera });
-});
+router.post(
+  '/cameras',
+  apiRoute({
+    method: 'post',
+    path: '/api/cameras',
+    tags: T,
+    summary: 'Register a camera by RTSP URL. Starts the scene-change analyzer.',
+    request: {
+      body: z.object({
+        name: z.string().min(1),
+        rtspUrl: z.string().min(1),
+        location: z.string().optional(),
+        kennelId: z.string().optional(),
+        resolution: z.string().optional(),
+        fps: z.coerce.number().optional(),
+      }),
+    },
+    responses: { 201: { description: 'created', schema: z.object({ camera: cameraShape }) } },
+  }),
+  (req: Request, res: Response) => {
+    const { name, location, kennelId, rtspUrl, resolution, fps } = req.body;
+    const cfg: CameraConfig = { name, location, kennelId, rtspUrl, resolution, fps };
+    const camera = cameraManager.registerCamera(cfg);
+    res.status(201).json({ camera });
+  },
+);
 
 // GET /api/cameras/:id - Get camera details
-router.get('/cameras/:id', (req: Request, res: Response) => {
-  const camera = cameraManager.getCamera(String(req.params.id));
-  if (!camera) {
-    res.status(404).json({ error: 'Camera not found' });
-    return;
-  }
-  res.json({ camera });
-});
+router.get(
+  '/cameras/:id',
+  apiRoute({
+    method: 'get',
+    path: '/api/cameras/{id}',
+    tags: T,
+    summary: 'One camera.',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok', schema: z.object({ camera: cameraShape }) }, 404: { description: 'not found' } },
+  }),
+  (req: Request, res: Response) => {
+    const camera = cameraManager.getCamera(String(req.params.id));
+    if (!camera) {
+      res.status(404).json({ error: 'Camera not found' });
+      return;
+    }
+    res.json({ camera });
+  },
+);
 
 // DELETE /api/cameras/:id - Remove camera
-router.delete('/cameras/:id', (req: Request, res: Response) => {
-  const deleted = cameraManager.removeCamera(String(req.params.id));
-  if (!deleted) {
-    res.status(404).json({ error: 'Camera not found' });
-    return;
-  }
-  streamManager.stopStream(String(req.params.id));
-  res.json({ success: true });
-});
+router.delete(
+  '/cameras/:id',
+  apiRoute({
+    method: 'delete',
+    path: '/api/cameras/{id}',
+    tags: T,
+    summary: 'Remove a camera + stop its stream.',
+    request: { params: idParam },
+    responses: { 200: { description: 'removed' }, 404: { description: 'not found' } },
+  }),
+  (req: Request, res: Response) => {
+    const deleted = cameraManager.removeCamera(String(req.params.id));
+    if (!deleted) {
+      res.status(404).json({ error: 'Camera not found' });
+      return;
+    }
+    streamManager.stopStream(String(req.params.id));
+    res.json({ success: true });
+  },
+);
 
 // ============== STREAMS ==============
 
