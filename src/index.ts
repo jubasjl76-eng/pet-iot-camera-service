@@ -13,7 +13,8 @@ import { healthMonitor } from './health/index.js';
 import { mqttCameraClient } from './mqtt/index.js';
 import { audioRelay } from './audio/index.js';
 import { motionAnalyzer } from './motion/analyzer.js';
-import cameraRoutes from './api/index.js';
+import cameraRoutes, { markShuttingDown } from './api/index.js';
+import type { Server } from 'http';
 
 async function main() {
   console.log(`
@@ -39,7 +40,7 @@ async function main() {
   app.use('/streams', express.static(config.hlsOutputPath));
 
   // Start server
-  app.listen(config.port, () => {
+  httpServer = app.listen(config.port, () => {
     console.log(`[Service] Camera service running on port ${config.port}`);
     console.log('[Service] =========================================');
   });
@@ -71,15 +72,35 @@ async function main() {
   process.on('SIGTERM', shutdown);
 }
 
-function shutdown() {
-  console.log('\n[Service] Shutting down...');
-  streamManager.stopAll();
-  motionAnalyzer.stopAll();
-  healthMonitor.stop();
-  audioRelay.stop();
-  mqttCameraClient.disconnect();
-  backendClient.stop();
-  process.exit(0);
+let httpServer: Server | undefined;
+let shuttingDown = false;
+
+function shutdown(signal?: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  markShuttingDown(); // /api/ready → 503 immediately
+  console.log(`\n[Service] ${signal ?? 'shutdown'} — draining...`);
+
+  const guard = setTimeout(() => {
+    console.error('[Service] drain timed out, forcing exit');
+    process.exit(1);
+  }, 10_000);
+  guard.unref();
+
+  const teardown = () => {
+    streamManager.stopAll();
+    motionAnalyzer.stopAll();
+    healthMonitor.stop();
+    audioRelay.stop();
+    mqttCameraClient.disconnect();
+    backendClient.stop();
+    clearTimeout(guard);
+    console.log('[Service] stopped');
+    process.exit(0);
+  };
+
+  if (httpServer) httpServer.close(() => teardown());
+  else teardown();
 }
 
 main();

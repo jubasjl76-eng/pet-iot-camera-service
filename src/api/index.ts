@@ -244,9 +244,9 @@ router.delete('/cameras/:id/audio/session/:sid', (req: Request, res: Response) =
   res.json({ ok: audioRelay.end(String(req.params.sid)) });
 });
 
-// GET /api/health - Service health
+// GET /api/health - liveness (the process is up). Always 200.
 router.get('/health', (_req: Request, res: Response) => {
-  res.json({ 
+  res.json({
     status: 'ok',
     service: 'camera',
     streams: streamManager.getActiveStreams(),
@@ -254,5 +254,16 @@ router.get('/health', (_req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+// GET /api/ready - readiness. 503 until MQTT is connected / while draining.
+router.get('/ready', (_req: Request, res: Response) => {
+  const mqtt = mqttCameraClient.isConnected();
+  const ok = mqtt && !isShuttingDown();
+  res.status(ok ? 200 : 503).json({ status: ok ? 'ready' : 'not-ready', mqtt, shuttingDown: isShuttingDown() });
+});
+
+let shuttingDown = false;
+export function markShuttingDown(): void { shuttingDown = true; }
+function isShuttingDown(): boolean { return shuttingDown; }
 
 export default router;
