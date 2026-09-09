@@ -7,7 +7,7 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
     "build": "tsc",
-    "test": "vitest",
+    "test": "vitest run",
     "docker:build": "docker build -t pet-iot-camera-service .",
     "docker:run": "docker run -d -p 3006:3006 --network host pet-iot-camera-service"
   },
@@ -29,5 +29,8 @@
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
     "vitest": "^3.0.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-linux-x64-gnu": "^4.43.0"
   }
 }
