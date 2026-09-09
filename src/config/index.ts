@@ -1,4 +1,11 @@
-// Configuration
+/**
+ * Typed config contract (hardening Phase 12, A8).
+ *
+ * ONE zod schema over process.env via @jubasjl76-eng/shared; a missing/invalid
+ * var prints every problem and exits. The `config` object keeps its camelCase
+ * domain shape + the resolved `iceServers` list so nothing else changed.
+ */
+import { loadConfig, z, envInt, envPort } from '@jubasjl76-eng/shared';
 
 export interface IceServer {
   urls: string;
@@ -6,84 +13,83 @@ export interface IceServer {
   credential?: string;
 }
 
-export interface Config {
-  port: number;
+const schema = z.object({
+  // public / build-time
+  PORT: envPort().default(3006),
+  STREAM_PORT: envPort().default(3007),
 
-  mqttHost: string;
-  mqttPort: number;
-  mqttUsername?: string;
-  mqttPassword?: string;
+  // runtime non-secret
+  MQTT_HOST: z.string().default('localhost'),
+  MQTT_PORT: envPort().default(1883),
+  MQTT_USERNAME: z.string().optional(),
+  LOCAL_BACKEND_URL: z.string().url().optional(),
+  CLOUD_BACKEND_URL: z.string().url().optional(),
+  HLS_OUTPUT: z.string().default('./streams'),
+  MOTION_THRESHOLD: envInt().default(30),
+  MOTION_COOLDOWN: envInt().default(60),
+  MOTION_ANALYZE: z.string().default('true').transform((v) => v !== 'false'),
+  MOTION_SCENE: z.coerce.number().default(0.04),
+  CAMERA_REGISTRY_FILE: z.string().default('./data/cameras.json'),
+  HEALTH_CHECK_INTERVAL: envInt().default(60_000),
+  AUDIO_SESSION_TTL: envInt().default(120_000),
+  STUN_URL: z.string().default('stun:stun.l.google.com:19302'),
+  TURN_URL: z.string().optional(),
+  TURN_USER: z.string().optional(),
 
-  localBackendUrl?: string;
-  cloudBackendUrl?: string;
-  apiKey: string;
+  // secret (AWS Secrets Manager at runtime; SOPS+age for git-committed non-prod)
+  MQTT_PASSWORD: z.string().optional(),
+  TURN_PASS: z.string().optional(),
+  API_KEY: z.string().default('smart-pet-api-key-2026'),
+});
 
-  streamPort: number;
-  hlsOutputPath: string;
-
-  // Motion detection
-  motionThreshold: number;
-  motionCooldown: number;
-  motionAnalyze: boolean; // run the ffmpeg scene-change analyzer
-  motionScene: number; // ffmpeg scene-change threshold 0..1
-
-  // Camera registry (survives a restart)
-  cameraRegistryFile: string;
-
-  healthCheckInterval: number;
-
-  // Two-way audio
-  audioSessionTtl: number;
-  iceServers: IceServer[]; // STUN + optional TURN, handed to the app
-}
-
-const int = (v: string | undefined, d: number) => {
-  const n = parseInt(v ?? "", 10);
-  return Number.isFinite(n) ? n : d;
-};
-const flt = (v: string | undefined, d: number) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : d;
-};
+const env = loadConfig(schema, { name: 'camera' });
 
 function iceServers(): IceServer[] {
-  const list: IceServer[] = [
-    { urls: process.env.STUN_URL || "stun:stun.l.google.com:19302" },
-  ];
-  if (process.env.TURN_URL) {
-    list.push({
-      urls: process.env.TURN_URL,
-      username: process.env.TURN_USER,
-      credential: process.env.TURN_PASS,
-    });
+  const list: IceServer[] = [{ urls: env.STUN_URL }];
+  if (env.TURN_URL) {
+    list.push({ urls: env.TURN_URL, username: env.TURN_USER, credential: env.TURN_PASS });
   }
   return list;
 }
 
+export interface Config {
+  port: number;
+  mqttHost: string;
+  mqttPort: number;
+  mqttUsername?: string;
+  mqttPassword?: string;
+  localBackendUrl?: string;
+  cloudBackendUrl?: string;
+  apiKey: string;
+  streamPort: number;
+  hlsOutputPath: string;
+  motionThreshold: number;
+  motionCooldown: number;
+  motionAnalyze: boolean;
+  motionScene: number;
+  cameraRegistryFile: string;
+  healthCheckInterval: number;
+  audioSessionTtl: number;
+  iceServers: IceServer[];
+}
+
 export const config: Config = {
-  port: int(process.env.PORT, 3006),
-
-  mqttHost: process.env.MQTT_HOST || "localhost",
-  mqttPort: int(process.env.MQTT_PORT, 1883),
-  mqttUsername: process.env.MQTT_USERNAME,
-  mqttPassword: process.env.MQTT_PASSWORD,
-
-  localBackendUrl: process.env.LOCAL_BACKEND_URL,
-  cloudBackendUrl: process.env.CLOUD_BACKEND_URL,
-  apiKey: process.env.API_KEY || "smart-pet-api-key-2026",
-
-  streamPort: int(process.env.STREAM_PORT, 3007),
-  hlsOutputPath: process.env.HLS_OUTPUT || "./streams",
-
-  motionThreshold: int(process.env.MOTION_THRESHOLD, 30),
-  motionCooldown: int(process.env.MOTION_COOLDOWN, 60),
-  motionAnalyze: process.env.MOTION_ANALYZE !== "false",
-  motionScene: flt(process.env.MOTION_SCENE, 0.04),
-
-  cameraRegistryFile: process.env.CAMERA_REGISTRY_FILE || "./data/cameras.json",
-
-  healthCheckInterval: int(process.env.HEALTH_CHECK_INTERVAL, 60000),
-
-  audioSessionTtl: int(process.env.AUDIO_SESSION_TTL, 120000),
+  port: env.PORT,
+  mqttHost: env.MQTT_HOST,
+  mqttPort: env.MQTT_PORT,
+  mqttUsername: env.MQTT_USERNAME,
+  mqttPassword: env.MQTT_PASSWORD,
+  localBackendUrl: env.LOCAL_BACKEND_URL,
+  cloudBackendUrl: env.CLOUD_BACKEND_URL,
+  apiKey: env.API_KEY,
+  streamPort: env.STREAM_PORT,
+  hlsOutputPath: env.HLS_OUTPUT,
+  motionThreshold: env.MOTION_THRESHOLD,
+  motionCooldown: env.MOTION_COOLDOWN,
+  motionAnalyze: env.MOTION_ANALYZE,
+  motionScene: env.MOTION_SCENE,
+  cameraRegistryFile: env.CAMERA_REGISTRY_FILE,
+  healthCheckInterval: env.HEALTH_CHECK_INTERVAL,
+  audioSessionTtl: env.AUDIO_SESSION_TTL,
   iceServers: iceServers(),
 };
