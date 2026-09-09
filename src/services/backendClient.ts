@@ -2,7 +2,7 @@
  * Backend Client for Edge/Cloud Communication
  */
 
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import fs from 'fs';
 import path from 'path';
 
@@ -18,7 +18,7 @@ interface CameraEvent {
 }
 
 class BackendClient {
-  private client: axios.AxiosInstance;
+  private client: AxiosInstance;
   private online: boolean = true;
   private syncInterval: NodeJS.Timeout | null = null;
 

@@ -4,7 +4,7 @@
 
 import { EventEmitter } from 'events';
 import { config } from '../config/index.js';
-import { backendClient } from '../services/backendClient.ts';
+import { backendClient } from '../services/backendClient.js';
 import { cameraManager } from '../cameras/index.js';
 
 export interface CameraHealth {

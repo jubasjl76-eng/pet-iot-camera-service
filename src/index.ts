@@ -10,6 +10,9 @@ import { backendClient } from './services/backendClient.js';
 import { cameraManager } from './cameras/index.js';
 import { streamManager } from './streams/index.js';
 import { healthMonitor } from './health/index.js';
+import { mqttCameraClient } from './mqtt/index.js';
+import { audioRelay } from './audio/index.js';
+import { motionAnalyzer } from './motion/analyzer.js';
 import cameraRoutes from './api/index.js';
 
 async function main() {
@@ -41,6 +44,25 @@ async function main() {
     console.log('[Service] =========================================');
   });
 
+  // Two-way audio: relay app→camera signals over MQTT
+  audioRelay.setPublisher((kennelId, cameraId, sessionId, signal) => {
+    mqttCameraClient.publishAudio(kennelId, cameraId, sessionId, signal);
+  });
+
+  // Real motion: an ffmpeg scene-change analyzer per camera. Runs for cameras
+  // restored from the registry file and for any registered afterwards.
+  for (const cam of cameraManager.getAllCameras()) motionAnalyzer.start(cam);
+  cameraManager.on('registered', (cam) => motionAnalyzer.start(cam));
+  cameraManager.on('removed', (cameraId: string) => motionAnalyzer.stop(cameraId));
+
+  // Connect to MQTT
+  try {
+    await mqttCameraClient.connect();
+    console.log('[Service] MQTT connected');
+  } catch (error) {
+    console.log('[Service] MQTT connection failed, running without MQTT');
+  }
+
   // Start health monitoring
   healthMonitor.start();
 
@@ -52,7 +74,10 @@ async function main() {
 function shutdown() {
   console.log('\n[Service] Shutting down...');
   streamManager.stopAll();
+  motionAnalyzer.stopAll();
   healthMonitor.stop();
+  audioRelay.stop();
+  mqttCameraClient.disconnect();
   backendClient.stop();
   process.exit(0);
 }
