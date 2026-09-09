@@ -3,6 +3,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import { config } from '../config/index.js';
 import { cameraManager, CameraConfig } from '../cameras/index.js';
 import { streamManager } from '../streams/index.js';
 import { motionDetection } from '../motion/index.js';
@@ -11,6 +12,11 @@ import { audioRelay } from '../audio/index.js';
 import { mqttCameraClient } from '../mqtt/index.js';
 
 const router = Router();
+
+// ICE servers (STUN + optional TURN) for the app's RTCPeerConnection.
+router.get('/ice-servers', (_req: Request, res: Response) => {
+  res.json({ iceServers: config.iceServers });
+});
 
 // ============== CAMERAS ==============
 
@@ -163,7 +169,7 @@ router.post('/cameras/:id/audio/session', (req: Request, res: Response) => {
     return;
   }
   const session = audioRelay.createSession(camera.cameraId, camera.kennelId || 'default');
-  res.status(201).json({ sessionId: session.id, cameraId: camera.cameraId });
+  res.status(201).json({ sessionId: session.id, cameraId: camera.cameraId, iceServers: config.iceServers });
 });
 
 // GET /api/cameras/:id/audio/sessions - list active sessions for a camera

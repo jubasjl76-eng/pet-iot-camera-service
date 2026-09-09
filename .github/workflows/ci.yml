@@ -1,0 +1,11 @@
+name: CI
+on:
+  push:
+    branches: [main, development]
+  pull_request:
+jobs:
+  ci:
+    uses: jubasjl76-eng/smart-pet-ci/.github/workflows/node-ci.yml@main
+    with:
+      typecheck: false
+      test-command: "npm run build && npm test"

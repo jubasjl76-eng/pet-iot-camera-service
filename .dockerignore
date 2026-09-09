@@ -1,0 +1,10 @@
+node_modules
+dist
+data
+streams
+.git
+.github
+*.log
+.env
+.env.*
+src/__tests__
