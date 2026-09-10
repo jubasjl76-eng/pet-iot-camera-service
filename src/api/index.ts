@@ -15,7 +15,9 @@ import { apiRoute } from '../openapi.js';
 
 const router = Router();
 const T = ['cameras'];
+const A = ['audio'];
 const idParam = z.object({ id: z.string() });
+const sidParam = z.object({ id: z.string(), sid: z.string() });
 
 // ICE servers (STUN + optional TURN) for the app's RTCPeerConnection.
 router.get(
@@ -134,7 +136,15 @@ router.delete(
 // ============== STREAMS ==============
 
 // GET /api/cameras/:id/stream - Get stream URL
-router.get('/cameras/:id/stream', (req: Request, res: Response) => {
+router.get(
+  '/cameras/:id/stream',
+  apiRoute({
+    method: 'get', path: '/api/cameras/{id}/stream', tags: T,
+    summary: 'Get (or start) the HLS stream URL for a camera.',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok' }, 404: { description: 'not found' }, 500: { description: 'start failed' } },
+  }),
+  (req: Request, res: Response) => {
   const camera = cameraManager.getCamera(String(req.params.id));
   if (!camera) {
     res.status(404).json({ error: 'Camera not found' });
@@ -142,7 +152,7 @@ router.get('/cameras/:id/stream', (req: Request, res: Response) => {
   }
 
   let streamUrl = streamManager.getStreamUrl(String(req.params.id));
-  
+
   if (!streamUrl) {
     streamUrl = streamManager.startStream(String(req.params.id));
     if (!streamUrl) {
@@ -155,7 +165,15 @@ router.get('/cameras/:id/stream', (req: Request, res: Response) => {
 });
 
 // POST /api/cameras/:id/stream/start - Start streaming
-router.post('/cameras/:id/stream/start', (req: Request, res: Response) => {
+router.post(
+  '/cameras/:id/stream/start',
+  apiRoute({
+    method: 'post', path: '/api/cameras/{id}/stream/start', tags: T,
+    summary: 'Start the stream for a camera.',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok' }, 500: { description: 'start failed' } },
+  }),
+  (req: Request, res: Response) => {
   const streamUrl = streamManager.startStream(String(req.params.id));
   if (!streamUrl) {
     res.status(500).json({ error: 'Failed to start stream' });
@@ -165,7 +183,15 @@ router.post('/cameras/:id/stream/start', (req: Request, res: Response) => {
 });
 
 // POST /api/cameras/:id/stream/stop - Stop streaming
-router.post('/cameras/:id/stream/stop', (req: Request, res: Response) => {
+router.post(
+  '/cameras/:id/stream/stop',
+  apiRoute({
+    method: 'post', path: '/api/cameras/{id}/stream/stop', tags: T,
+    summary: 'Stop the stream for a camera.',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok' } },
+  }),
+  (req: Request, res: Response) => {
   streamManager.stopStream(String(req.params.id));
   res.json({ success: true });
 });
@@ -173,7 +199,15 @@ router.post('/cameras/:id/stream/stop', (req: Request, res: Response) => {
 // ============== SNAPSHOTS ==============
 
 // GET /api/cameras/:id/snapshot - Get snapshot
-router.get('/cameras/:id/snapshot', (req: Request, res: Response) => {
+router.get(
+  '/cameras/:id/snapshot',
+  apiRoute({
+    method: 'get', path: '/api/cameras/{id}/snapshot', tags: T,
+    summary: 'Capture a snapshot (placeholder — needs FFmpeg integration).',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok' }, 404: { description: 'not found' } },
+  }),
+  (req: Request, res: Response) => {
   const camera = cameraManager.getCamera(String(req.params.id));
   if (!camera) {
     res.status(404).json({ error: 'Camera not found' });
@@ -182,7 +216,7 @@ router.get('/cameras/:id/snapshot', (req: Request, res: Response) => {
 
   // In production, this would capture from the stream
   // For now, return placeholder
-  res.json({ 
+  res.json({
     message: 'Snapshot endpoint - requires FFmpeg integration',
     cameraId: String(req.params.id),
   });
@@ -191,9 +225,17 @@ router.get('/cameras/:id/snapshot', (req: Request, res: Response) => {
 // ============== MOTION ==============
 
 // GET /api/cameras/:id/motion - Get motion status
-router.get('/cameras/:id/motion', (req: Request, res: Response) => {
+router.get(
+  '/cameras/:id/motion',
+  apiRoute({
+    method: 'get', path: '/api/cameras/{id}/motion', tags: T,
+    summary: 'Last-motion timestamp + cooldown for a camera.',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok' } },
+  }),
+  (req: Request, res: Response) => {
   const timeSinceLastMotion = motionDetection.getTimeSinceLastMotion(String(req.params.id));
-  res.json({ 
+  res.json({
     cameraId: String(req.params.id),
     lastMotion: timeSinceLastMotion >= 0 ? new Date(Date.now() - timeSinceLastMotion) : null,
     cooldownSeconds: timeSinceLastMotion >= 0 ? Math.floor(timeSinceLastMotion / 1000) : null,
@@ -201,7 +243,15 @@ router.get('/cameras/:id/motion', (req: Request, res: Response) => {
 });
 
 // POST /api/cameras/:id/motion - Simulate motion (for testing)
-router.post('/cameras/:id/motion', (req: Request, res: Response) => {
+router.post(
+  '/cameras/:id/motion',
+  apiRoute({
+    method: 'post', path: '/api/cameras/{id}/motion', tags: T,
+    summary: 'Simulate a motion event (testing).',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok' } },
+  }),
+  (req: Request, res: Response) => {
   motionDetection.simulateMotion(String(req.params.id));
   res.json({ success: true, message: 'Motion simulated' });
 });
@@ -209,7 +259,15 @@ router.post('/cameras/:id/motion', (req: Request, res: Response) => {
 // ============== HEALTH ==============
 
 // GET /api/cameras/:id/health - Get camera health
-router.get('/cameras/:id/health', (req: Request, res: Response) => {
+router.get(
+  '/cameras/:id/health',
+  apiRoute({
+    method: 'get', path: '/api/cameras/{id}/health', tags: T,
+    summary: 'Health snapshot for a camera.',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok' }, 404: { description: 'no data' } },
+  }),
+  (req: Request, res: Response) => {
   const health = healthMonitor.getHealth(String(req.params.id));
   if (!health) {
     res.status(404).json({ error: 'No health data available' });
@@ -224,7 +282,15 @@ router.get('/cameras/:id/health', (req: Request, res: Response) => {
 // and the talk/play/stop controls. The app polls /poll for the camera's replies.
 
 // POST /api/cameras/:id/audio/session - open a talk session
-router.post('/cameras/:id/audio/session', (req: Request, res: Response) => {
+router.post(
+  '/cameras/:id/audio/session',
+  apiRoute({
+    method: 'post', path: '/api/cameras/{id}/audio/session', tags: A,
+    summary: 'Open a two-way audio (talk) session.',
+    request: { params: idParam },
+    responses: { 201: { description: 'created' }, 404: { description: 'camera not found' } },
+  }),
+  (req: Request, res: Response) => {
   const camera = cameraManager.getCamera(String(req.params.id));
   if (!camera) {
     res.status(404).json({ error: 'Camera not found' });
@@ -235,12 +301,28 @@ router.post('/cameras/:id/audio/session', (req: Request, res: Response) => {
 });
 
 // GET /api/cameras/:id/audio/sessions - list active sessions for a camera
-router.get('/cameras/:id/audio/sessions', (req: Request, res: Response) => {
+router.get(
+  '/cameras/:id/audio/sessions',
+  apiRoute({
+    method: 'get', path: '/api/cameras/{id}/audio/sessions', tags: A,
+    summary: 'Active audio sessions for a camera.',
+    request: { params: idParam },
+    responses: { 200: { description: 'ok' } },
+  }),
+  (req: Request, res: Response) => {
   res.json({ sessions: audioRelay.list(String(req.params.id)) });
 });
 
 // POST /api/cameras/:id/audio/signal - app → camera (offer / answer / ice)
-router.post('/cameras/:id/audio/signal', (req: Request, res: Response) => {
+router.post(
+  '/cameras/:id/audio/signal',
+  apiRoute({
+    method: 'post', path: '/api/cameras/{id}/audio/signal', tags: A,
+    summary: 'Relay a WebRTC signal (offer / answer / ice) app → camera.',
+    request: { params: idParam, body: z.object({ sessionId: z.string(), signal: z.record(z.string(), z.unknown()) }) },
+    responses: { 200: { description: 'ok' }, 400: { description: 'bad signal' }, 404: { description: 'unknown session' } },
+  }),
+  (req: Request, res: Response) => {
   const { sessionId, signal } = req.body || {};
   if (!sessionId || !signal || !signal.kind) {
     res.status(400).json({ error: 'sessionId and signal{kind,...} are required' });
@@ -254,7 +336,15 @@ router.post('/cameras/:id/audio/signal', (req: Request, res: Response) => {
 });
 
 // GET /api/cameras/:id/audio/session/:sid/poll - drain signals queued for the app
-router.get('/cameras/:id/audio/session/:sid/poll', (req: Request, res: Response) => {
+router.get(
+  '/cameras/:id/audio/session/:sid/poll',
+  apiRoute({
+    method: 'get', path: '/api/cameras/{id}/audio/session/{sid}/poll', tags: A,
+    summary: 'Drain signals queued for the app.',
+    request: { params: sidParam },
+    responses: { 200: { description: 'ok' }, 404: { description: 'unknown session' } },
+  }),
+  (req: Request, res: Response) => {
   const signals = audioRelay.poll(String(req.params.sid), 'app');
   if (signals === null) {
     res.status(404).json({ error: 'Unknown session' });
@@ -264,7 +354,15 @@ router.get('/cameras/:id/audio/session/:sid/poll', (req: Request, res: Response)
 });
 
 // Camera-side poll (for a device that cannot subscribe MQTT) - drain app→camera queue
-router.get('/cameras/:id/audio/session/:sid/poll-camera', (req: Request, res: Response) => {
+router.get(
+  '/cameras/:id/audio/session/:sid/poll-camera',
+  apiRoute({
+    method: 'get', path: '/api/cameras/{id}/audio/session/{sid}/poll-camera', tags: A,
+    summary: 'Drain signals queued for the camera (device HTTP fallback).',
+    request: { params: sidParam },
+    responses: { 200: { description: 'ok' }, 404: { description: 'unknown session' } },
+  }),
+  (req: Request, res: Response) => {
   const signals = audioRelay.poll(String(req.params.sid), 'camera');
   if (signals === null) {
     res.status(404).json({ error: 'Unknown session' });
@@ -274,7 +372,15 @@ router.get('/cameras/:id/audio/session/:sid/poll-camera', (req: Request, res: Re
 });
 
 // POST /api/cameras/:id/audio/talk - push-to-talk start/end
-router.post('/cameras/:id/audio/talk', (req: Request, res: Response) => {
+router.post(
+  '/cameras/:id/audio/talk',
+  apiRoute({
+    method: 'post', path: '/api/cameras/{id}/audio/talk', tags: A,
+    summary: 'Push-to-talk start / end.',
+    request: { params: idParam, body: z.object({ sessionId: z.string(), state: z.enum(['start', 'end']) }) },
+    responses: { 200: { description: 'ok' }, 400: { description: 'bad state' }, 404: { description: 'unknown session' } },
+  }),
+  (req: Request, res: Response) => {
   const { sessionId, state } = req.body || {};
   if (!sessionId || (state !== 'start' && state !== 'end')) {
     res.status(400).json({ error: "sessionId and state ('start'|'end') required" });
@@ -288,7 +394,15 @@ router.post('/cameras/:id/audio/talk', (req: Request, res: Response) => {
 });
 
 // POST /api/cameras/:id/audio/play - play a canned clip on the camera speaker
-router.post('/cameras/:id/audio/play', (req: Request, res: Response) => {
+router.post(
+  '/cameras/:id/audio/play',
+  apiRoute({
+    method: 'post', path: '/api/cameras/{id}/audio/play', tags: A,
+    summary: 'Play a canned clip on the camera speaker.',
+    request: { params: idParam, body: z.object({ sessionId: z.string(), url: z.string(), loop: z.boolean().optional() }) },
+    responses: { 200: { description: 'ok' }, 400: { description: 'missing url' }, 404: { description: 'unknown session' } },
+  }),
+  (req: Request, res: Response) => {
   const { sessionId, url, loop } = req.body || {};
   if (!sessionId || !url) {
     res.status(400).json({ error: 'sessionId and url required' });
@@ -302,7 +416,15 @@ router.post('/cameras/:id/audio/play', (req: Request, res: Response) => {
 });
 
 // DELETE /api/cameras/:id/audio/session/:sid - end a session
-router.delete('/cameras/:id/audio/session/:sid', (req: Request, res: Response) => {
+router.delete(
+  '/cameras/:id/audio/session/:sid',
+  apiRoute({
+    method: 'delete', path: '/api/cameras/{id}/audio/session/{sid}', tags: A,
+    summary: 'End an audio session.',
+    request: { params: sidParam },
+    responses: { 200: { description: 'ok' } },
+  }),
+  (req: Request, res: Response) => {
   res.json({ ok: audioRelay.end(String(req.params.sid)) });
 });
 
