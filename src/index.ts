@@ -18,19 +18,14 @@ import { motionAnalyzer } from './motion/analyzer.js';
 import cameraRoutes, { markShuttingDown } from './api/index.js';
 import { buildOpenApiDoc, docsHtml } from './openapi.js';
 import { httpMetricsMiddleware, metricsHandler } from './metrics.js';
+import { log } from './log.js';
 import type { Server } from 'http';
 
 async function main() {
-  console.log(`
-╔═══════════════════════════════════════════════════════════╗
-║         🐾 Pet IoT Camera Service v1.0.0 🐾            ║
-╠═══════════════════════════════════════════════════════════╣
-║  Port:      ${config.port.toString().padEnd(39)}║
-║  Stream:    ${config.streamPort.toString().padEnd(39)}║
-║  MQTT:      ${`${config.mqttHost}:${config.mqttPort}`.padEnd(39)}║
-║  Backend:   ${backendClient.getBackendUrl().padEnd(39)}║
-╚═══════════════════════════════════════════════════════════╝
-  `);
+  log.info(
+    { port: config.port, streamPort: config.streamPort, mqtt: `${config.mqttHost}:${config.mqttPort}`, backend: backendClient.getBackendUrl() },
+    'camera service starting',
+  );
 
   // Express app
   const app = express();
@@ -52,8 +47,7 @@ async function main() {
 
   // Start server
   httpServer = app.listen(config.port, () => {
-    console.log(`[Service] Camera service running on port ${config.port}`);
-    console.log('[Service] =========================================');
+    log.info({ port: config.port }, 'HTTP server listening');
   });
 
   // Two-way audio: relay app→camera signals over MQTT
@@ -70,9 +64,9 @@ async function main() {
   // Connect to MQTT
   try {
     await mqttCameraClient.connect();
-    console.log('[Service] MQTT connected');
+    log.info('MQTT connected');
   } catch (error) {
-    console.log('[Service] MQTT connection failed, running without MQTT');
+    log.warn('MQTT connect failed; running without MQTT');
   }
 
   // Start health monitoring
@@ -90,10 +84,10 @@ function shutdown(signal?: string) {
   if (shuttingDown) return;
   shuttingDown = true;
   markShuttingDown(); // /api/ready → 503 immediately
-  console.log(`\n[Service] ${signal ?? 'shutdown'} — draining...`);
+  log.info({ signal: signal ?? 'shutdown' }, 'draining');
 
   const guard = setTimeout(() => {
-    console.error('[Service] drain timed out, forcing exit');
+    log.error('drain timed out, forcing exit');
     process.exit(1);
   }, 10_000);
   guard.unref();
@@ -106,7 +100,7 @@ function shutdown(signal?: string) {
     mqttCameraClient.disconnect();
     backendClient.stop();
     clearTimeout(guard);
-    console.log('[Service] stopped');
+    log.info('stopped');
     process.exit(0);
   };
 
