@@ -7,6 +7,7 @@ import './instrument.js'; // Sentry — must be the very first import
 import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import { config } from './config/index.js';
 import { backendClient } from './services/backendClient.js';
 import { cameraManager } from './cameras/index.js';
@@ -29,13 +30,38 @@ async function main() {
 
   // Express app
   const app = express();
+
+  // Security headers (Phase 18, A12 #11). JSON API → `default-src 'none'` CSP;
+  // CORP `cross-origin` so the dashboard can pull HLS from `/streams`. `/docs`
+  // relaxes the CSP for Scalar (loaded from jsdelivr, runs inline).
+  app.use(helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: { 'default-src': ["'none'"], 'frame-ancestors': ["'none'"] },
+    },
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }));
+  const docsCsp = helmet.contentSecurityPolicy({
+    useDefaults: false,
+    directives: {
+      'default-src': ["'self'"],
+      'script-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net'],
+      'style-src': ["'self'", "'unsafe-inline'", 'https://cdn.jsdelivr.net', 'https://fonts.googleapis.com'],
+      'font-src': ["'self'", 'https://fonts.gstatic.com', 'data:'],
+      'img-src': ["'self'", 'data:', 'https:'],
+      'connect-src': ["'self'"],
+      'worker-src': ["'self'", 'blob:'],
+      'frame-ancestors': ["'none'"],
+    },
+  });
+
   app.use(cors());
   app.use(express.json());
   app.use(httpMetricsMiddleware);
 
   // Routes
   app.get('/openapi.json', (_req, res) => res.json(buildOpenApiDoc()));
-  app.get('/docs', (_req, res) => res.type('html').send(docsHtml));
+  app.get('/docs', docsCsp, (_req, res) => res.type('html').send(docsHtml));
   app.get('/metrics', metricsHandler); // Prometheus (Phase 16)
   app.use('/api', cameraRoutes);
 
