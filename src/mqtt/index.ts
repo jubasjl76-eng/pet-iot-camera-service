@@ -9,6 +9,9 @@ import { config } from '../config/index.js';
 import { cameraManager } from '../cameras/index.js';
 import { motionDetection } from '../motion/index.js';
 import { audioRelay, type AudioSignal } from '../audio/index.js';
+import { log } from '../log.js';
+
+const mlog = log.child({ mod: 'mqtt' });
 
 export class MQTTCameraClient extends EventEmitter {
   private client: MqttClient | null = null;
@@ -33,23 +36,23 @@ export class MQTTCameraClient extends EventEmitter {
         options.password = config.mqttPassword;
       }
 
-      console.log(`[MQTT] Connecting to ${url}...`);
+      mlog.info({ url }, 'connecting');
       
       this.client = mqtt.connect(url, options);
 
       this.client.on('connect', () => {
-        console.log('[MQTT] Connected successfully');
+        mlog.info('connected');
         this.subscribeToTopics();
         resolve();
       });
 
       this.client.on('error', (error) => {
-        console.error('[MQTT] Connection error:', error.message);
+        mlog.error({ err: error }, 'error');
         reject(error);
       });
 
       this.client.on('reconnect', () => {
-        console.log('[MQTT] Reconnecting...');
+        mlog.warn('reconnecting');
       });
 
       this.client.on('message', (topic, message) => {
@@ -72,9 +75,9 @@ export class MQTTCameraClient extends EventEmitter {
     topics.forEach(topic => {
       this.client?.subscribe(topic, { qos: 1 }, (err) => {
         if (err) {
-          console.error(`[MQTT] Subscribe error for ${topic}:`, err);
+          mlog.error({ err, topic }, 'subscribe failed');
         } else {
-          console.log(`[MQTT] Subscribed to ${topic}`);
+          mlog.debug({ topic }, 'subscribed');
         }
       });
     });
@@ -88,7 +91,7 @@ export class MQTTCameraClient extends EventEmitter {
       // Topic: kennel/{kennelId}/camera/{cameraId}/{type}
       const [, kennelId, , cameraId, type] = topicParts;
       
-      console.log(`[MQTT] Camera message on ${topic}:`, payload);
+      mlog.debug({ topic }, 'camera message');
 
       if (type === 'status') {
         // Update camera status
@@ -110,7 +113,7 @@ export class MQTTCameraClient extends EventEmitter {
       }
       
     } catch (error) {
-      console.error('[MQTT] Failed to parse message:', error);
+      mlog.warn({ err: error }, 'failed to parse message');
     }
   }
 
@@ -119,13 +122,13 @@ export class MQTTCameraClient extends EventEmitter {
    */
   publishEvent(kennelId: string, cameraId: string, eventType: string, data: any): void {
     if (!this.client || !this.client.connected) {
-      console.log('[MQTT] Client not connected');
+      mlog.warn('publish skipped — not connected');
       return;
     }
 
     const topic = `kennel/${kennelId}/camera/${cameraId}/${eventType}`;
     this.client.publish(topic, JSON.stringify(data), { qos: 1 });
-    console.log(`[MQTT] Published to ${topic}`);
+    mlog.debug({ topic }, 'published');
   }
 
   /**
@@ -134,7 +137,7 @@ export class MQTTCameraClient extends EventEmitter {
    */
   publishAudio(kennelId: string, cameraId: string, session: string, signal: AudioSignal): void {
     if (!this.client || !this.client.connected) {
-      console.log('[MQTT] Client not connected — audio signal dropped');
+      mlog.warn('audio signal dropped — not connected');
       return;
     }
     const topic = `kennel/${kennelId}/camera/${cameraId}/audio`;
