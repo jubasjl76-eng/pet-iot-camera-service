@@ -12,20 +12,21 @@
     "docker:run": "docker run -d -p 3006:3006 --network host pet-iot-camera-service"
   },
   "dependencies": {
-    "mqtt": "^5.10.0",
+    "@jubasjl76-eng/shared": "git+https://github.com/jubasjl76-eng/smart-pet-shared.git#shared-v0.2.0",
+    "@sentry/node": "^10.74.0",
     "axios": "^1.7.9",
-    "dotenv": "^16.4.0",
-    "uuid": "^11.1.0",
-    "fluent-ffmpeg": "^2.1.3",
-    "express": "^5.2.1",
     "cors": "^2.8.6",
-    "@jubasjl76-eng/shared": "git+https://github.com/jubasjl76-eng/smart-pet-shared.git#shared-v0.2.0"
+    "dotenv": "^16.4.0",
+    "express": "^5.2.1",
+    "fluent-ffmpeg": "^2.1.3",
+    "mqtt": "^5.10.0",
+    "uuid": "^11.1.0"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/fluent-ffmpeg": "^2.1.27",
-    "@types/express": "^5.0.1",
     "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.1",
+    "@types/fluent-ffmpeg": "^2.1.27",
+    "@types/node": "^22.0.0",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",

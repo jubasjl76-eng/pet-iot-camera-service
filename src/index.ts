@@ -3,6 +3,8 @@
  * Main entry point
  */
 
+import './instrument.js'; // Sentry — must be the very first import
+import * as Sentry from '@sentry/node';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config/index.js';
@@ -41,6 +43,9 @@ async function main() {
 
   // Static files for HLS streams
   app.use('/streams', express.static(config.hlsOutputPath));
+
+  // After the routes. No-op without a DSN.
+  Sentry.setupExpressErrorHandler(app);
 
   // Start server
   httpServer = app.listen(config.port, () => {
